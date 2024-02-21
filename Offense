@@ -1,0 +1,151 @@
+---
+title: "Untitled"
+output: pdf_document
+date: "2023-10-30"
+---
+
+
+---
+title: "Weekly Stat Predictor"
+output: pdf_document
+date: "2023-10-21"
+---
+
+```{r}
+library(tidyverse)
+library(ggrepel)
+library(nflreadr)
+library(nflplotR)
+library(stringr)
+```
+
+```{r}
+options(scipen = 9999)
+```
+
+```{r}
+pbp_stats <- load_player_stats(2020:2022)
+
+def_stats <- load_pbp(2020:2022)
+
+pbp_stats_test <- load_player_stats(2023)
+
+def_stats_test <- load_pbp(2023)
+
+```
+
+```{r}
+def_stats_allowed <- def_stats %>%
+  filter(!is.na(posteam)) %>%
+  select(game_id, season, week, posteam, defteam, passing_yards, rushing_yards, success, rush_touchdown, pass_touchdown, interception, fumble_lost, sack) %>%
+  replace(is.na(.), 0) %>%
+  group_by(game_id, season, week, posteam, defteam) %>%
+  summarize(total_rushing_yards_allowed = sum(rushing_yards), success_rate_against = mean(success), total_rush_tds_allowed = sum(rush_touchdown), total_passing_yards_allowed = sum(passing_yards), total_pass_tds_allowed = sum(pass_touchdown), interceptions_forced = sum(interception), fumbles_forced = sum(fumble_lost), sacks_forced = sum(sack)) %>%
+  ungroup()
+
+
+
+def_stats_allowed_test <- def_stats_test %>%
+  filter(!is.na(posteam)) %>%
+  select(game_id, season, week, posteam, defteam, passing_yards, rushing_yards, success, rush_touchdown, pass_touchdown, interception, fumble_lost, sack) %>%
+  replace(is.na(.), 0) %>%
+  group_by(game_id, season, week, posteam, defteam) %>%
+  summarize(total_rushing_yards_allowed = sum(rushing_yards), success_rate_against = mean(success), total_rush_tds_allowed = sum(rush_touchdown), total_passing_yards_allowed = sum(passing_yards), total_pass_tds_allowed = sum(pass_touchdown), interceptions_forced = sum(interception), fumbles_forced = sum(fumble_lost), sacks_forced = sum(sack)) %>%
+  ungroup()
+  
+
+```
+
+
+
+```{r}
+weekly_stats <- pbp_stats %>%
+  select(-c(headshot_url, pacr, dakota, racr, opponent_team, position_group)) %>%
+  replace(is.na(.), 0) %>%
+  mutate(fan_points_half_ppr = (.04*passing_yards) + (4* passing_tds) + (-2*interceptions) + (2*passing_2pt_conversions) + (.1*rushing_yards) + (6*rushing_tds) + (-2*rushing_fumbles_lost) + (2*rushing_2pt_conversions) + (.1*receiving_yards) + (.5*receptions) + (6*receiving_tds) + (-2*receiving_fumbles_lost) + (2*receiving_2pt_conversions) + (-2*sack_fumbles_lost), posteam = recent_team) %>%
+  select(-c(recent_team))
+
+
+weekly_stats_test <- pbp_stats_test %>%
+  select(-c(headshot_url, pacr, dakota, racr, opponent_team, position_group)) %>%
+  replace(is.na(.), 0) %>%
+  mutate(fan_points_half_ppr = (.04*passing_yards) + (4* passing_tds) + (-2*interceptions) + (2*passing_2pt_conversions) + (.1*rushing_yards) + (6*rushing_tds) + (-2*rushing_fumbles_lost) + (2*rushing_2pt_conversions) + (.1*receiving_yards) + (.5*receptions) + (6*receiving_tds) + (-2*receiving_fumbles_lost) + (2*receiving_2pt_conversions) + (-2*sack_fumbles_lost), posteam = recent_team) %>%
+  select(-c(recent_team))
+  
+  
+```
+
+
+```{r}
+positions <- c("QB", "RB", "WR", "TE")
+
+
+merged_stats <- left_join(weekly_stats, def_stats_allowed, by =c("season", "week", "posteam")) %>%
+  filter(position %in% positions) %>%
+  select(-c( player_display_name, season, season_type, wopr, special_teams_tds))
+
+
+
+merged_stats_test <- left_join(weekly_stats_test, def_stats_allowed_test, by =c("season", "week", "posteam")) %>%
+  filter(position %in% positions) %>%
+  select(-c( player_display_name, season, season_type, wopr, special_teams_tds))
+
+
+```
+
+
+## Chang Week here ###
+
+```{r, warning=FALSE}
+weekly_stats_test_QB <- weekly_stats_test %>%
+  filter(position == "QB", week < 9) %>%
+  mutate(player_team = posteam) %>%
+  group_by(player_id,, player_name, posteam, player_team, position) %>%
+  summarise(completions = mean(completions), attempts = mean(attempts), passing_yards = mean(passing_yards), passing_tds = mean(passing_tds), interceptions = mean(interceptions), sacks = mean(sacks), sack_yards = mean(sack_yards), sack_fumbles = mean(sack_fumbles), sack_fumbles_lost = mean(sack_fumbles_lost), 
+            passing_air_yards = mean(passing_air_yards), passing_yards_after_catch = mean(passing_yards_after_catch), passing_first_downs = mean(passing_first_downs), passing_epa = mean(passing_epa), passing_2pt_conversions = mean(passing_2pt_conversions), 
+            carries = mean(carries), rushing_yards = mean(rushing_yards), rushing_tds = mean(rushing_tds), rushing_fumbles = mean(rushing_fumbles), rushing_fumbles_lost = mean(rushing_fumbles_lost), rushing_first_downs = mean(rushing_first_downs), rushing_epa = mean(rushing_epa), rushing_2pt_conversions = mean(rushing_2pt_conversions), 
+            receptions = mean(receptions), targets = mean(targets), receiving_yards = mean(receiving_yards), receiving_tds = mean(receiving_tds), receiving_fumbles = mean(receiving_fumbles), receiving_fumbles_lost = mean(receiving_fumbles_lost), receiving_air_yards = mean(receiving_air_yards), receiving_yards_after_catch = mean(receiving_yards_after_catch), receiving_first_downs = mean(receiving_first_downs), receiving_epa = mean(receiving_epa), target_share = mean(target_share), air_yards_share = mean(air_yards_share), receiving_2pt_conversions = mean(receiving_2pt_conversions)) %>%
+  ungroup() %>%
+  distinct()
+
+
+
+
+weekly_stats_test_RB <- weekly_stats_test %>%
+  filter(position == "RB", week < 9) %>%
+  mutate(player_team = posteam) %>%
+  group_by(player_id, , player_name, posteam, player_team, position) %>%
+  summarise(completions = mean(completions), attempts = mean(attempts), passing_yards = mean(passing_yards), passing_tds = mean(passing_tds), interceptions = mean(interceptions), sacks = mean(sacks), sack_yards = mean(sack_yards), sack_fumbles = mean(sack_fumbles), sack_fumbles_lost = mean(sack_fumbles_lost), passing_air_yards = mean(passing_air_yards), passing_yards_after_catch = mean(passing_yards_after_catch), passing_first_downs = mean(passing_first_downs), passing_epa = mean(passing_epa), passing_2pt_conversions = mean(passing_2pt_conversions), 
+            carries = mean(carries), rushing_yards = mean(rushing_yards), rushing_tds = mean(rushing_tds), rushing_fumbles = mean(rushing_fumbles), rushing_fumbles_lost = mean(rushing_fumbles_lost), rushing_first_downs = mean(rushing_first_downs), rushing_epa = mean(rushing_epa), rushing_2pt_conversions = mean(rushing_2pt_conversions), 
+            receptions = mean(receptions), targets = mean(targets), receiving_yards = mean(receiving_yards), receiving_tds = mean(receiving_tds), receiving_fumbles = mean(receiving_fumbles), receiving_fumbles_lost = mean(receiving_fumbles_lost), receiving_air_yards = mean(receiving_air_yards), receiving_yards_after_catch = mean(receiving_yards_after_catch), receiving_first_downs = mean(receiving_first_downs), receiving_epa = mean(receiving_epa), target_share = mean(target_share), air_yards_share = mean(air_yards_share), receiving_2pt_conversions = mean(receiving_2pt_conversions)) %>%
+  ungroup() %>%
+  distinct()
+
+
+
+
+
+weekly_stats_test_WR <- weekly_stats_test %>%
+  filter(position == "WR", week < 9) %>%
+  mutate(player_team = posteam) %>%
+  group_by(player_id,player_name, posteam, player_team, position) %>%
+  summarise(completions = mean(completions), attempts = mean(attempts), passing_yards = mean(passing_yards), passing_tds = mean(passing_tds), interceptions = mean(interceptions), sacks = mean(sacks), sack_yards = mean(sack_yards), sack_fumbles = mean(sack_fumbles), sack_fumbles_lost = mean(sack_fumbles_lost), passing_air_yards = mean(passing_air_yards), passing_yards_after_catch = mean(passing_yards_after_catch), passing_first_downs = mean(passing_first_downs), passing_epa = mean(passing_epa), passing_2pt_conversions = mean(passing_2pt_conversions), 
+            carries = mean(carries), rushing_yards = mean(rushing_yards), rushing_tds = mean(rushing_tds), rushing_fumbles = mean(rushing_fumbles), rushing_fumbles_lost = mean(rushing_fumbles_lost), rushing_first_downs = mean(rushing_first_downs), rushing_epa = mean(rushing_epa), rushing_2pt_conversions = mean(rushing_2pt_conversions), 
+            receptions = mean(receptions), targets = mean(targets), receiving_yards = mean(receiving_yards), receiving_tds = mean(receiving_tds), receiving_fumbles = mean(receiving_fumbles), receiving_fumbles_lost = mean(receiving_fumbles_lost), receiving_air_yards = mean(receiving_air_yards), receiving_yards_after_catch = mean(receiving_yards_after_catch), receiving_first_downs = mean(receiving_first_downs), receiving_epa = mean(receiving_epa), target_share = mean(target_share), air_yards_share = mean(air_yards_share), receiving_2pt_conversions = mean(receiving_2pt_conversions)) %>%
+  ungroup() %>%
+  distinct()
+
+
+
+
+weekly_stats_test_TE <- weekly_stats_test %>%
+  filter(position == "TE", week < 9) %>%
+  mutate(player_team = posteam) %>%
+  group_by(player_id, player_name, posteam, player_team, position) %>%
+  summarise(completions = mean(completions), attempts = mean(attempts), passing_yards = mean(passing_yards), passing_tds = mean(passing_tds), interceptions = mean(interceptions), sacks = mean(sacks), sack_yards = mean(sack_yards), sack_fumbles = mean(sack_fumbles), sack_fumbles_lost = mean(sack_fumbles_lost), passing_air_yards = mean(passing_air_yards), passing_yards_after_catch = mean(passing_yards_after_catch), passing_first_downs = mean(passing_first_downs), passing_epa = mean(passing_epa), passing_2pt_conversions = mean(passing_2pt_conversions), 
+            carries = mean(carries), rushing_yards = mean(rushing_yards), rushing_tds = mean(rushing_tds), rushing_fumbles = mean(rushing_fumbles), rushing_fumbles_lost = mean(rushing_fumbles_lost), rushing_first_downs = mean(rushing_first_downs), rushing_epa = mean(rushing_epa), rushing_2pt_conversions = mean(rushing_2pt_conversions), 
+            receptions = mean(receptions), targets = mean(targets), receiving_yards = mean(receiving_yards), receiving_tds = mean(receiving_tds), receiving_fumbles = mean(receiving_fumbles), receiving_fumbles_lost = mean(receiving_fumbles_lost), receiving_air_yards = mean(receiving_air_yards), receiving_yards_after_catch = mean(receiving_yards_after_catch), receiving_first_downs = mean(receiving_first_downs), receiving_epa = mean(receiving_epa), target_share = mean(target_share), air_yards_share = mean(air_yards_share), receiving_2pt_conversions = mean(receiving_2pt_conversions)) %>%
+  ungroup() %>%
+  distinct()
+
+```
